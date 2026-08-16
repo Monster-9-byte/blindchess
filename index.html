@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中国象棋变体 - 盲棋</title>
+    <style>
+        :root {
+            --bg: #f5e6d3;
+            --board-bg: #e8d5b8;
+            --text: #3a2010;
+            --red: #c0392b;
+            --black: #1a1a1a;
+            --gold: #b8860b;
+            --highlight: #ffeb3b;
+            --valid-move: #4caf50;
+            --panel-bg: #fdf5e6;
+            --border: #8b6914;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #3a1f04 0%, #5c3a1e 30%, #3a1f04 60%, #2a1506 100%);
+            display: flex; justify-content: center; align-items: center; min-height: 100vh;
+            font-family: 'STSong', 'Songti SC', 'Noto Serif SC', 'SimSun', 'KaiTi', 'STKaiti', '楷体', serif;
+            user-select: none; -webkit-user-select: none; padding: 20px;
+        }
+        .game-container {
+            display: flex; gap: 30px; align-items: stretch;
+            background: rgba(0,0,0,0.25); border-radius: 20px; padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 3px rgba(139,105,20,0.4);
+        }
+        .board-wrapper {
+            position: relative; background: #c89460; border-radius: 16px; padding: 12px;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.3), 0 8px 30px rgba(0,0,0,0.4); border: 4px solid #6b3a1f;
+        }
+        canvas { display: block; border-radius: 8px; cursor: pointer; }
+        .side-panel { display: flex; flex-direction: column; gap: 18px; min-width: 200px; max-width: 240px; }
+        .panel-card {
+            background: var(--panel-bg); border-radius: 12px; padding: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 2px solid var(--border);
+        }
+        .panel-card h3 { text-align: center; color: #5c3a1e; font-size: 1.1em; margin-bottom: 10px; border-bottom: 2px solid #d4b896; padding-bottom: 8px; letter-spacing: 2px; }
+        .turn-indicator { text-align: center; font-size: 1.3em; font-weight: bold; letter-spacing: 3px; padding: 12px 16px; border-radius: 10px; transition: all 0.3s; }
+        .turn-red { background: #ffe0e0; color: #c0392b; border: 2px solid #c0392b; animation: pulse-red 1.5s ease-in-out infinite; }
+        .turn-black { background: #e0e0e0; color: #1a1a1a; border: 2px solid #1a1a1a; animation: pulse-black 1.5s ease-in-out infinite; }
+        @keyframes pulse-red { 0%,100% { box-shadow: 0 0 8px rgba(192,57,43,0.5); } 50% { box-shadow: 0 0 22px rgba(192,57,43,0.9); } }
+        @keyframes pulse-black { 0%,100% { box-shadow: 0 0 8px rgba(0,0,0,0.5); } 50% { box-shadow: 0 0 22px rgba(0,0,0,0.7); } }
+        .captured-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 36px; align-items: center; justify-content: center; }
+        .captured-piece { display: inline-block; width: 34px; height: 34px; line-height: 34px; text-align: center; border-radius: 50%; font-weight: bold; font-size: 0.85em; border: 2px solid #999; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .captured-red { color: #c0392b; border-color: #c0392b; }
+        .captured-black { color: #1a1a1a; border-color: #1a1a1a; }
+        .btn { display: block; width: 100%; padding: 12px 16px; font-size: 1em; font-weight: bold; letter-spacing: 2px; border: none; border-radius: 10px; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+        .btn-end-turn { background: #f0c060; color: #5c3a1e; border: 2px solid #b8860b; }
+        .btn-end-turn:hover { background: #f5d080; box-shadow: 0 4px 12px rgba(184,134,11,0.5); }
+        .btn-end-turn:disabled { background: #ccc; color: #888; border-color: #aaa; cursor: not-allowed; }
+        .btn-undo { background: #e0cfa0; color: #5c3a1e; border: 2px solid #8b6914; }
+        .btn-undo:hover { background: #f0e0c0; box-shadow: 0 4px 12px rgba(139,105,20,0.4); }
+        .btn-undo:disabled { background: #ccc; color: #888; border-color: #aaa; cursor: not-allowed; }
+        .btn-new-game { background: #5c3a1e; color: #f5e6d3; border: 2px solid #3a1f04; }
+        .btn-new-game:hover { background: #7a4f2e; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+        .action-buttons { display: flex; gap: 10px; position: absolute; pointer-events: none; z-index: 10; }
+        .action-buttons.active { pointer-events: auto; }
+        .action-btn { padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 0.9em; cursor: pointer; border: 2px solid; letter-spacing: 1px; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+        .action-btn-move { background: #fff; color: #1a6e30; border-color: #1a6e30; }
+        .action-btn-move:hover { background: #e8f5e9; box-shadow: 0 3px 10px rgba(26,110,48,0.4); }
+        .action-btn-flip { background: #fff; color: #b8860b; border-color: #b8860b; }
+        .action-btn-flip:hover { background: #fffde7; box-shadow: 0 3px 10px rgba(184,134,11,0.4); }
+        .action-btn-cancel { background: #f5f5f5; color: #666; border-color: #999; }
+        .victory-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; display: flex; justify-content: center; align-items: center; animation: fade-in 0.3s; }
+        @keyframes fade-in { from{opacity:0;} to{opacity:1;} }
+        .victory-dialog { background: #fdf5e6; border-radius: 20px; padding: 40px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.6); border: 4px solid #b8860b; animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop-in { from{transform:scale(0.7);opacity:0;} to{transform:scale(1);opacity:1;} }
+        .victory-dialog h2 { font-size: 2em; letter-spacing: 4px; margin-bottom: 10px; }
+        .red-text { color: #c0392b; } .black-text { color: #1a1a1a; }
+        .victory-dialog button { margin-top: 20px; padding: 12px 30px; font-size: 1.1em; letter-spacing: 2px; border-radius: 10px; border: 2px solid #b8860b; background: #f0c060; cursor: pointer; font-weight: bold; font-family: inherit; }
+        .info-text { color: #8b6914; font-size: 0.85em; text-align: center; letter-spacing: 1px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+<div class="game-container" id="gameContainer">
+    <div class="board-wrapper" id="boardWrapper">
+        <canvas id="chessCanvas"></canvas>
+        <div class="action-buttons" id="actionButtons">
+            <button class="action-btn action-btn-move" id="btnMove">🚶 走棋</button>
+            <button class="action-btn action-btn-flip" id="btnFlip">🔍 翻棋</button>
+            <button class="action-btn action-btn-cancel" id="btnCancel">✖ 取消</button>
+        </div>
+    </div>
+    <div class="side-panel">
+        <div class="panel-card"><h3>🎯 当前回合</h3><div class="turn-indicator turn-red" id="turnIndicator">红方回合</div></div>
+        <div class="panel-card"><h3>🔴 红方吃掉的棋子</h3><div class="captured-list" id="capturedByRed">-</div></div>
+        <div class="panel-card"><h3>⚫ 黑方吃掉的棋子</h3><div class="captured-list" id="capturedByBlack">-</div></div>
+        <div class="panel-card"><div class="info-text" id="infoText">💡 点击暗棋可选择走棋或翻棋<br>每回合必须走一步，可选翻一次</div></div>
+        <button class="btn btn-end-turn" id="btnEndTurn" disabled>✅ 结束回合</button>
+        <button class="btn btn-undo" id="btnUndo" disabled>↩️ 悔棋</button>
+        <button class="btn btn-new-game" id="btnNewGame">🔄 新游戏</button>
+    </div>
+</div>
+<script>
+(function() {
+    const COLS = 9, ROWS = 10, CELL_SIZE = 70;
+    const BOARD_PADDING_LEFT = 55, BOARD_PADDING_TOP = 55, BOARD_PADDING_RIGHT = 40, BOARD_PADDING_BOTTOM = 45;
+    const PIECE_RADIUS = 28;
+    const canvas = document.getElementById('chessCanvas');
+    const ctx = canvas.getContext('2d');
+    const canvasWidth = BOARD_PADDING_LEFT + (COLS-1)*CELL_SIZE + BOARD_PADDING_RIGHT;
+    const canvasHeight = BOARD_PADDING_TOP + (ROWS-1)*CELL_SIZE + BOARD_PADDING_BOTTOM;
+    canvas.width = canvasWidth; canvas.height = canvasHeight;
+    canvas.style.width = canvasWidth + 'px'; canvas.style.height = canvasHeight + 'px';
+
+    function colToX(c) { return BOARD_PADDING_LEFT + c * CELL_SIZE; }
+    function rowToY(r) { return BOARD_PADDING_TOP + r * CELL_SIZE; }
+    function posToCoord(r,c) { return { x: colToX(c), y: rowToY(r) }; }
+    function coordToPos(mx, my) {
+        const c = Math.round((mx - BOARD_PADDING_LEFT) / CELL_SIZE);
+        const r = Math.round((my - BOARD_PADDING_TOP) / CELL_SIZE);
+        if (c<0||c>=COLS||r<0||r>=ROWS) return null;
+        const cx = colToX(c), cy = rowToY(r);
+        return Math.sqrt((mx-cx)**2+(my-cy)**2) <= PIECE_RADIUS+6 ? {r,c} : null;
+    }
+
+    let board = [], currentTurn = 'red', turnHasMoved = false, turnHasFlipped = false;
+    let selectedPiecePos = null, validMoves = [];
+    let capturedByRed = [], capturedByBlack = [];
+    let gameOver = false, winner = null, animatingPiece = null;
+    let pendingAction = null, actionPiecePos = null;
+    let history = [];
+
+    const PIECE_NAMES = { shuai:'帅',jiang:'将',ju:'車',ma:'馬',xiang:'象',shi:'士',pao:'炮',bing:'兵',zu:'卒' };
+    const PIECE_TYPES_RED = ['ju','ju','ma','ma','xiang','xiang','shi','shi','pao','pao','bing','bing','bing','bing','bing'];
+    const PIECE_TYPES_BLACK = ['ju','ju','ma','ma','xiang','xiang','shi','shi','pao','pao','zu','zu','zu','zu','zu'];
+
+    // 修正后的标准象棋开局位置（行号完全正确）
+    function buildPositionTypes() {
+        const m = {};
+        // 黑方（上方）
+        m['0,0']='ju';m['0,1']='ma';m['0,2']='xiang';m['0,3']='shi';m['0,4']='jiang';m['0,5']='shi';m['0,6']='xiang';m['0,7']='ma';m['0,8']='ju';
+        m['3,0']='zu';m['3,2']='zu';m['3,4']='zu';m['3,6']='zu';m['3,8']='zu';   // 卒在行3
+        m['2,1']='pao';m['2,7']='pao';                                           // 炮在行2
+        // 红方（下方）
+        m['6,0']='bing';m['6,2']='bing';m['6,4']='bing';m['6,6']='bing';m['6,8']='bing'; // 兵在行6
+        m['7,1']='pao';m['7,7']='pao';                                           // 炮在行7
+        m['9,0']='ju';m['9,1']='ma';m['9,2']='xiang';m['9,3']='shi';m['9,4']='shuai';m['9,5']='shi';m['9,6']='xiang';m['9,7']='ma';m['9,8']='ju';
+        return m;
+    }
+    const positionTypeMap = buildPositionTypes();
+
+    function createPiece(type, side, revealed, moveType) {
+        return { type, side, revealed, moveType: moveType || null };
+    }
+
+    function saveHistory() {
+        history.push({
+            board: board.map(row => row.map(p => p?{...p}:null)),
+            currentTurn, turnHasMoved, turnHasFlipped,
+            capturedByRed: [...capturedByRed], capturedByBlack: [...capturedByBlack],
+            gameOver, winner,
+            selectedPiecePos: selectedPiecePos?{...selectedPiecePos}:null,
+            validMoves: validMoves.map(m=>({...m})),
+            pendingAction, actionPiecePos: actionPiecePos?{...actionPiecePos}:null
+        });
+        if (history.length > 20) history.shift();
+    }
+
+    function undoMove() {
+        if (!history.length || animatingPiece || gameOver) return;
+        const state = history.pop();
+        board = state.board; currentTurn = state.currentTurn;
+        turnHasMoved = state.turnHasMoved; turnHasFlipped = state.turnHasFlipped;
+        capturedByRed = state.capturedByRed; capturedByBlack = state.capturedByBlack;
+        gameOver = state.gameOver; winner = state.winner;
+        selectedPiecePos = state.selectedPiecePos; validMoves = state.validMoves;
+        pendingAction = state.pendingAction; actionPiecePos = state.actionPiecePos;
+        animatingPiece = null;
+        updateUI(); render();
+    }
+
+    function initBoard() {
+        board = Array.from({length:ROWS}, ()=>Array(COLS).fill(null));
+        capturedByRed = []; capturedByBlack = [];
+        gameOver = false; winner = null;
+        currentTurn = 'red'; turnHasMoved = false; turnHasFlipped = false;
+        selectedPiecePos = null; validMoves = [];
+        animatingPiece = null; pendingAction = null; actionPiecePos = null;
+        history = [];
+
+        // 固定布局位置，按顺序收集30个暗棋位
+        const darkPositions = [];
+        for (let r=0; r<ROWS; r++) {
+            for (let c=0; c<COLS; c++) {
+                const key = r+','+c;
+                if (positionTypeMap[key] && positionTypeMap[key]!=='shuai' && positionTypeMap[key]!=='jiang') {
+                    darkPositions.push({r, c, posType: positionTypeMap[key]});
+                }
+            }
+        }
+
+        // 生成30个随机身份（15红+15黑）
+        const darkPieces = [];
+        PIECE_TYPES_RED.forEach(t => darkPieces.push({type:t, side:'red'}));
+        PIECE_TYPES_BLACK.forEach(t => darkPieces.push({type:t, side:'black'}));
+        for (let i = darkPieces.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [darkPieces[i], darkPieces[j]] = [darkPieces[j], darkPieces[i]];
+        }
+
+        // 填入固定位置
+        for (let i = 0; i < darkPositions.length; i++) {
+            const {r, c, posType} = darkPositions[i];
+            const {type, side} = darkPieces[i];
+            board[r][c] = createPiece(type, side, false, posType);
+        }
+
+        // 明棋：帅/将
+        board[9][4] = createPiece('shuai', 'red', true, null);
+        board[0][4] = createPiece('jiang', 'black', true, null);
+
+        updateUI(); render();
+    }
+
+    function getEffectiveMoveType(p) { return p.revealed ? p.type : p.moveType; }
+    function isInOwnHalf(r, side) { return side==='red' ? r>=5 : r<=4; }
+
+    function findKing(side) {
+        const type = side==='red'?'shuai':'jiang';
+        for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++) {
+            const p = board[r][c];
+            if (p && p.revealed && p.type===type) return {r,c};
+        }
+        return null;
+    }
+
+    function isFlyingGeneral(side) {
+        const my = findKing(side);
+        const opp = findKing(side==='red'?'black':'red');
+        if (!my || !opp || my.c !== opp.c) return false;
+        const minR = Math.min(my.r, opp.r), maxR = Math.max(my.r, opp.r);
+        for (let r=minR+1; r<maxR; r++) if (board[r][my.c] !== null) return false;
+        return true;
+    }
+
+    function moveCausesFlyingGeneral(fr, fc, tr, tc, side) {
+        const p = board[fr][fc], t = board[tr][tc];
+        board[tr][tc] = p; board[fr][fc] = null;
+        const res = isFlyingGeneral(side);
+        board[fr][fc] = p; board[tr][tc] = t;
+        return res;
+    }
+
+    function generateMoves(r, c) {
+        const piece = board[r][c];
+        if (!piece) return [];
+        if (piece.revealed && piece.side !== currentTurn) return [];
+        const moveType = getEffectiveMoveType(piece);
+        const side = piece.revealed ? piece.side : currentTurn;
+        const moves = [];
+
+        function addMove(tr, tc) {
+            if (tr<0||tr>=ROWS||tc<0||tc>=COLS) return;
+            const target = board[tr][tc];
+            if (target && target.revealed && target.side===side && piece.revealed && piece.side===side) return;
+            if (target && target.revealed && target.side===side && !piece.revealed) return;
+            moves.push({r:tr, c:tc});
+        }
+        function blocked(br,bc) { return board[br][bc] !== null; }
+
+        switch(moveType) {
+            case 'shuai': case 'jiang':
+                const gr = piece.side==='red'?[7,8,9]:[0,1,2];
+                for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                    const tr=r+dr, tc=c+dc;
+                    if (gr.includes(tr) && [3,4,5].includes(tc)) addMove(tr,tc);
+                }
+                break;
+            case 'ju':
+                for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                    let tr=r+dr, tc=c+dc;
+                    while (tr>=0&&tr<ROWS&&tc>=0&&tc<COLS) {
+                        if (blocked(tr,tc)) { addMove(tr,tc); break; }
+                        addMove(tr,tc); tr+=dr; tc+=dc;
+                    }
+                }
+                break;
+            case 'ma':
+                const horse = [ [-2,-1,-1,0],[-2,1,-1,0],[2,-1,1,0],[2,1,1,0],
+                                [-1,-2,0,-1],[-1,2,0,1],[1,-2,0,-1],[1,2,0,1] ];
+                for (const [dr,dc,lr,lc] of horse) {
+                    const tr=r+dr, tc=c+dc;
+                    if (tr>=0&&tr<ROWS&&tc>=0&&tc<COLS && !blocked(r+lr, c+lc)) addMove(tr,tc);
+                }
+                break;
+            case 'xiang':
+                const ele = [ [-2,-2,-1,-1],[-2,2,-1,1],[2,-2,1,-1],[2,2,1,1] ];
+                for (const [dr,dc,er,ec] of ele) {
+                    const tr=r+dr, tc=c+dc;
+                    if (tr>=0&&tr<ROWS&&tc>=0&&tc<COLS && !blocked(r+er, c+ec)) addMove(tr,tc);
+                }
+                break;
+            case 'shi':
+                for (const [dr,dc] of [[-1,-1],[-1,1],[1,-1],[1,1]]) addMove(r+dr, c+dc);
+                break;
+            case 'pao':
+                for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                    let tr=r+dr, tc=c+dc;
+                    while (tr>=0&&tr<ROWS&&tc>=0&&tc<COLS && !blocked(tr,tc)) {
+                        addMove(tr,tc); tr+=dr; tc+=dc;
+                    }
+                    if (tr>=0&&tr<ROWS&&tc>=0&&tc<COLS && blocked(tr,tc)) {
+                        tr+=dr; tc+=dc;
+                        while (tr>=0&&tr<ROWS&&tc>=0&&tc<COLS) {
+                            if (blocked(tr,tc)) { addMove(tr,tc); break; }
+                            tr+=dr; tc+=dc;
+                        }
+                    }
+                }
+                break;
+            case 'bing':
+                addMove(r-1, c);
+                if (r <= 4) { addMove(r, c-1); addMove(r, c+1); }
+                break;
+            case 'zu':
+                addMove(r+1, c);
+                if (r >= 5) { addMove(r, c-1); addMove(r, c+1); }
+                break;
+        }
+        return moves.filter(move => !moveCausesFlyingGeneral(r, c, move.r, move.c, side));
+    }
+
+    function executeMove(fr, fc, tr, tc) {
+        if (animatingPiece||gameOver) return false;
+        const piece = board[fr][fc], target = board[tr][tc];
+        if (!piece) return false;
+        if (!generateMoves(fr,fc).some(m=>m.r===tr&&m.c===tc)) return false;
+        saveHistory();
+
+        if (target && !target.revealed) {
+            animatingPiece = {r:tr, c:tc, piece:target};
+            target.revealed = true;
+            (currentTurn==='red'?capturedByRed:capturedByBlack).push({type:target.type, side:target.side});
+            render(); updateUI();
+            setTimeout(() => {
+                board[tr][tc] = null; animatingPiece = null;
+                board[tr][tc] = piece; board[fr][fc] = null;
+                finishMove(); render(); updateUI();
+            }, 800);
+            return true;
+        }
+        if (target && target.revealed) {
+            (currentTurn==='red'?capturedByRed:capturedByBlack).push({type:target.type, side:target.side});
+            if (target.type==='shuai'||target.type==='jiang') { gameOver=true; winner=currentTurn; }
+        }
+        board[tr][tc] = piece; board[fr][fc] = null;
+        finishMove(); return true;
+    }
+
+    function finishMove() {
+        turnHasMoved = true;
+        selectedPiecePos = null; validMoves = [];
+        pendingAction = null; actionPiecePos = null;
+        if (gameOver) { updateUI(); render(); showVictory(); return; }
+        if (turnHasFlipped) switchTurn(); else { updateUI(); render(); }
+    }
+
+    function executeFlip(r, c) {
+        if (animatingPiece||gameOver) return false;
+        const piece = board[r][c];
+        if (!piece || piece.revealed || turnHasFlipped) return false;
+        saveHistory();
+        piece.revealed = true; piece.moveType = null;
+        turnHasFlipped = true;
+        pendingAction = null; actionPiecePos = null;
+        selectedPiecePos = null; validMoves = [];
+        if (turnHasMoved) switchTurn(); else { updateUI(); render(); }
+        return true;
+    }
+
+    function switchTurn() {
+        currentTurn = currentTurn==='red'?'black':'red';
+        turnHasMoved = false; turnHasFlipped = false;
+        selectedPiecePos = null; validMoves = [];
+        pendingAction = null; actionPiecePos = null;
+        updateUI(); render();
+    }
+
+    function showVictory() {
+        const overlay = document.createElement('div');
+        overlay.className = 'victory-overlay';
+        overlay.innerHTML = `<div class="victory-dialog"><h2 class="${winner==='red'?'red-text':'black-text'}">🎉 ${winner==='red'?'红方':'黑方'}获胜！</h2><p>成功吃掉了对方的${winner==='red'?'将':'帅'}！</p><button onclick="this.closest('.victory-overlay').remove(); document.getElementById('btnNewGame').click();">🔄 新游戏</button></div>`;
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', e=> { if(e.target===overlay) overlay.remove(); });
+    }
+
+    function updateUI() {
+        const ti = document.getElementById('turnIndicator');
+        if (gameOver) {
+            ti.textContent = winner==='red'?'红方获胜！':'黑方获胜！';
+            ti.className = 'turn-indicator '+(winner==='red'?'turn-red':'turn-black');
+        } else {
+            ti.textContent = currentTurn==='red'?'红方回合':'黑方回合';
+            ti.className = 'turn-indicator '+(currentTurn==='red'?'turn-red':'turn-black');
+        }
+        document.getElementById('btnEndTurn').disabled = !turnHasMoved||turnHasFlipped||gameOver||!!animatingPiece;
+        document.getElementById('btnUndo').disabled = history.length===0||!!animatingPiece||gameOver;
+        const info = document.getElementById('infoText');
+        if (gameOver) info.innerHTML = '🏆 游戏结束！';
+        else if (animatingPiece) info.innerHTML = '⏳ 展示被吃暗棋中...';
+        else if (!turnHasMoved && !turnHasFlipped) info.innerHTML = '💡 请走棋（必须），可选翻任意暗棋';
+        else if (turnHasMoved && !turnHasFlipped) info.innerHTML = '💡 已走棋，可选翻任意暗棋，或结束回合';
+        else info.innerHTML = '✅ 回合完成';
+        updateCapturedList('capturedByRed', capturedByRed);
+        updateCapturedList('capturedByBlack', capturedByBlack);
+        updateActionButtons();
+    }
+
+    function updateCapturedList(id, list) {
+        const el = document.getElementById(id);
+        if (list.length===0) el.innerHTML = '<span style="color:#999;">暂无</span>';
+        else el.innerHTML = list.map(p=>`<span class="captured-piece ${p.side==='red'?'captured-red':'captured-black'}">${PIECE_NAMES[p.type]}</span>`).join('');
+    }
+
+    function updateActionButtons() {
+        const div = document.getElementById('actionButtons');
+        if (pendingAction==='choose' && actionPiecePos && !animatingPiece && !gameOver) {
+            div.classList.add('active');
+            document.getElementById('btnMove').style.display='inline-block';
+            document.getElementById('btnFlip').style.display = turnHasFlipped?'none':'inline-block';
+            document.getElementById('btnCancel').style.display='inline-block';
+            const coord = posToCoord(actionPiecePos.r, actionPiecePos.c);
+            const boardRect = document.getElementById('boardWrapper').getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            div.style.left = (canvasRect.left - boardRect.left + coord.x)+'px';
+            div.style.top = (canvasRect.top - boardRect.top + coord.y - 60)+'px';
+        } else {
+            div.classList.remove('active');
+            document.getElementById('btnMove').style.display='none';
+            document.getElementById('btnFlip').style.display='none';
+            document.getElementById('btnCancel').style.display='none';
+        }
+    }
+
+    function render() {
+        ctx.clearRect(0,0,canvasWidth,canvasHeight);
+        ctx.fillStyle='#f5e0c0'; ctx.fillRect(0,0,canvasWidth,canvasHeight);
+        const bl = colToX(0)-CELL_SIZE/2, bt = rowToY(0)-CELL_SIZE/2;
+        ctx.fillStyle='#e8d5b0'; ctx.fillRect(bl, bt, (COLS-1)*CELL_SIZE+CELL_SIZE, (ROWS-1)*CELL_SIZE+CELL_SIZE);
+        ctx.strokeStyle='#5c3a1e'; ctx.lineWidth=3;
+        ctx.strokeRect(bl, bt, (COLS-1)*CELL_SIZE+CELL_SIZE, (ROWS-1)*CELL_SIZE+CELL_SIZE);
+        ctx.strokeStyle='#4a2a10'; ctx.lineWidth=1;
+        for (let r=0; r<ROWS; r++) { ctx.beginPath(); ctx.moveTo(colToX(0),rowToY(r)); ctx.lineTo(colToX(COLS-1),rowToY(r)); ctx.stroke(); }
+        for (let c=0; c<COLS; c++) {
+            if (c===0||c===COLS-1) { ctx.beginPath(); ctx.moveTo(colToX(c),rowToY(0)); ctx.lineTo(colToX(c),rowToY(ROWS-1)); ctx.stroke(); }
+            else { ctx.beginPath(); ctx.moveTo(colToX(c),rowToY(0)); ctx.lineTo(colToX(c),rowToY(4)); ctx.stroke(); ctx.beginPath(); ctx.moveTo(colToX(c),rowToY(5)); ctx.lineTo(colToX(c),rowToY(ROWS-1)); ctx.stroke(); }
+        }
+        ctx.setLineDash([5,3]);
+        ctx.beginPath(); ctx.moveTo(colToX(3),rowToY(0)); ctx.lineTo(colToX(5),rowToY(2)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(colToX(5),rowToY(0)); ctx.lineTo(colToX(3),rowToY(2)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(colToX(3),rowToY(7)); ctx.lineTo(colToX(5),rowToY(9)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(colToX(5),rowToY(7)); ctx.lineTo(colToX(3),rowToY(9)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle='#3a2010'; ctx.font='bold 22px "STKaiti","KaiTi"'; ctx.textAlign='center';
+        ctx.fillText('楚  河', colToX(2), (rowToY(4)+rowToY(5))/2+7);
+        ctx.fillText('汉  界', colToX(6), (rowToY(4)+rowToY(5))/2+7);
+
+        if (selectedPiecePos && !animatingPiece && !gameOver) {
+            const c = posToCoord(selectedPiecePos.r, selectedPiecePos.c);
+            ctx.fillStyle='rgba(255,235,59,0.5)'; ctx.beginPath(); ctx.arc(c.x,c.y,PIECE_RADIUS+5,0,Math.PI*2); ctx.fill();
+            ctx.strokeStyle='#ff9800'; ctx.lineWidth=3; ctx.stroke();
+        }
+        for (const m of validMoves) {
+            const c = posToCoord(m.r, m.c);
+            if (board[m.r][m.c]) {
+                ctx.fillStyle='rgba(255,80,80,0.3)'; ctx.beginPath(); ctx.arc(c.x,c.y,PIECE_RADIUS+4,0,Math.PI*2); ctx.fill();
+                ctx.strokeStyle='#e53935'; ctx.lineWidth=2.5; ctx.setLineDash([6,3]); ctx.stroke(); ctx.setLineDash([]);
+            } else {
+                ctx.fillStyle='rgba(76,175,80,0.6)'; ctx.beginPath(); ctx.arc(c.x,c.y,10,0,Math.PI*2); ctx.fill();
+            }
+        }
+        for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++) if (board[r][c]) drawPiece(posToCoord(r,c).x, posToCoord(r,c).y, board[r][c]);
+        if (animatingPiece) {
+            const c = posToCoord(animatingPiece.r, animatingPiece.c);
+            const pulse = Math.sin(Date.now()/150)*0.3+0.7;
+            ctx.fillStyle=`rgba(255,200,0,${0.5*pulse})`; ctx.beginPath(); ctx.arc(c.x,c.y,PIECE_RADIUS+8,0,Math.PI*2); ctx.fill();
+            ctx.strokeStyle='#ff6f00'; ctx.lineWidth=4; ctx.stroke();
+            drawPiece(c.x, c.y, animatingPiece.piece);
+        }
+    }
+
+    function drawPiece(x, y, piece) {
+        ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.arc(x+2,y+3,PIECE_RADIUS,0,Math.PI*2); ctx.fill();
+        const grad = ctx.createRadialGradient(x-4,y-6,PIECE_RADIUS*0.1, x,y,PIECE_RADIUS);
+        if (piece.revealed) { grad.addColorStop(0,'#fffef5'); grad.addColorStop(0.7,'#e8dcc8'); grad.addColorStop(1,'#c4b08a'); }
+        else { grad.addColorStop(0,'#5a5a6e'); grad.addColorStop(0.6,'#3a3a4a'); grad.addColorStop(1,'#1a1a28'); }
+        ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(x,y,PIECE_RADIUS,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle=piece.revealed?'#8b6914':'#666'; ctx.lineWidth=2.5; ctx.stroke();
+        ctx.strokeStyle=piece.revealed?'#c4a050':'#555'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(x,y,PIECE_RADIUS-5,0,Math.PI*2); ctx.stroke();
+        if (piece.revealed) {
+            ctx.save(); ctx.translate(x, y);
+            if (piece.side === 'black') ctx.rotate(Math.PI);
+            ctx.fillStyle = piece.side==='red'?'#c0392b':'#1a1a1a';
+            ctx.font = 'bold 24px "STKaiti","KaiTi","楷体"'; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText(PIECE_NAMES[piece.type], 0, 0);
+            ctx.restore();
+        } else {
+            ctx.fillStyle='#888'; ctx.font='bold 22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('?', x, y);
+            ctx.strokeStyle='#777'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x,y,PIECE_RADIUS-10,0,Math.PI*2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x-8,y-8); ctx.lineTo(x+8,y+8); ctx.moveTo(x+8,y-8); ctx.lineTo(x-8,y+8); ctx.stroke();
+        }
+    }
+
+    canvas.addEventListener('click', function(e) {
+        if (gameOver||animatingPiece) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = (e.clientX-rect.left)*(canvasWidth/rect.width);
+        const my = (e.clientY-rect.top)*(canvasHeight/rect.height);
+        const pos = coordToPos(mx, my);
+        if (!pos) {
+            if (pendingAction==='choose') { pendingAction=null; actionPiecePos=null; selectedPiecePos=null; validMoves=[]; updateUI(); render(); }
+            else if (selectedPiecePos && !turnHasMoved) { selectedPiecePos=null; validMoves=[]; render(); }
+            return;
+        }
+        const {r,c} = pos;
+        if (pendingAction==='choose' && actionPiecePos && actionPiecePos.r===r && actionPiecePos.c===c) return;
+        if (selectedPiecePos && validMoves.some(m=>m.r===r&&m.c===c)) {
+            executeMove(selectedPiecePos.r, selectedPiecePos.c, r, c); return;
+        }
+        const piece = board[r][c];
+        if (piece) {
+            if (piece.revealed && piece.side!==currentTurn) { selectedPiecePos=null; validMoves=[]; render(); return; }
+            if (!piece.revealed && !turnHasFlipped) {
+                pendingAction='choose'; actionPiecePos={r,c}; selectedPiecePos=null; validMoves=[];
+                const prev = generateMoves(r,c); validMoves=prev; selectedPiecePos={r,c};
+                updateUI(); render(); updateActionButtons(); return;
+            }
+            if (!piece.revealed && turnHasFlipped) {
+                pendingAction=null; actionPiecePos=null; selectedPiecePos={r,c}; validMoves=generateMoves(r,c);
+                updateUI(); render(); return;
+            }
+            if (piece.revealed && piece.side===currentTurn) {
+                pendingAction=null; actionPiecePos=null; selectedPiecePos={r,c}; validMoves=generateMoves(r,c);
+                updateUI(); render(); return;
+            }
+            selectedPiecePos={r,c}; validMoves=generateMoves(r,c); pendingAction=null; actionPiecePos=null;
+            updateUI(); render();
+        } else {
+            if (selectedPiecePos) { selectedPiecePos=null; validMoves=[]; pendingAction=null; actionPiecePos=null; updateUI(); render(); }
+        }
+    });
+
+    document.getElementById('btnMove').onclick = ()=>{
+        if (pendingAction==='choose' && actionPiecePos) {
+            pendingAction=null; const p=actionPiecePos; actionPiecePos=null;
+            selectedPiecePos={r:p.r,c:p.c}; validMoves=generateMoves(p.r,p.c); updateUI(); render();
+        }
+    };
+    document.getElementById('btnFlip').onclick = ()=>{
+        if (pendingAction==='choose' && actionPiecePos && !turnHasFlipped) {
+            const p=actionPiecePos; pendingAction=null; actionPiecePos=null;
+            executeFlip(p.r, p.c);
+        }
+    };
+    document.getElementById('btnCancel').onclick = ()=>{
+        pendingAction=null; actionPiecePos=null; selectedPiecePos=null; validMoves=[]; updateUI(); render();
+    };
+    document.getElementById('btnEndTurn').onclick = ()=>{
+        if (turnHasMoved && !turnHasFlipped && !gameOver && !animatingPiece) switchTurn();
+    };
+    document.getElementById('btnUndo').onclick = undoMove;
+    document.getElementById('btnNewGame').onclick = ()=>{
+        document.querySelectorAll('.victory-overlay').forEach(o=>o.remove());
+        initBoard();
+    };
+
+    function animationLoop() { if (animatingPiece) render(); requestAnimationFrame(animationLoop); }
+    document.addEventListener('keydown', function(e) {
+        if (gameOver && e.key==='Enter') { document.querySelectorAll('.victory-overlay').forEach(o=>o.remove()); initBoard(); }
+        if (e.key==='Escape') { pendingAction=null; actionPiecePos=null; selectedPiecePos=null; validMoves=[]; updateUI(); render(); }
+        if (e.key==='e'||e.key==='E') { if (turnHasMoved&&!turnHasFlipped&&!gameOver&&!animatingPiece) switchTurn(); }
+    });
+    initBoard(); animationLoop();
+})();
+</script>
+</body>
+</html>
